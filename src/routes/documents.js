@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { readFile } from 'node:fs/promises';
-import { PDFParse } from 'pdf-parse';
+import { Document } from '../models/Document.js';
+import { getRedis } from '../config/redis.js';
 
 const router = Router();
 const upload = multer({ dest: 'uploads/' });
+
+const QUEUE_NAME = 'pdf-processing-queue';
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {
@@ -12,19 +14,38 @@ router.post('/', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded (field name must be "file")' });
     }
 
-    const buffer = await readFile(req.file.path);
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    await parser.destroy();
-
-    return res.json({
+    const doc = await Document.create({
       originalName: req.file.originalname,
-      pageCount: result.pages?.length ?? result.numpages,
-      textPreview: result.text.slice(0, 500),
+      filePath: req.file.path,
+      fileSizeBytes: req.file.size,
+      status: 'pending',
+    });
+
+    const redis = getRedis();
+    await redis.lpush(QUEUE_NAME, JSON.stringify({ documentId: doc._id.toString() }));
+
+    return res.status(202).json({
+      documentId: doc._id,
+      status: doc.status,
+      message: 'Upload accepted, processing in background',
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+// GET /documents/:id/status — poll processing status
+router.get('/:id/status', async (req, res) => {
+  const doc = await Document.findById(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+  return res.json({
+    documentId: doc._id,
+    status: doc.status,
+    pageCount: doc.pageCount,
+    textPreview: doc.textPreview,
+    error: doc.error,
+  });
 });
 
 export default router;
