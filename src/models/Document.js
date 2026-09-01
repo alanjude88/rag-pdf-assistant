@@ -13,6 +13,7 @@ const documentSchema = new mongoose.Schema(
     error: { type: String, default: null },
     textPreview: { type: String, default: null },
     pageCount: { type: Number, default: null },
+    chunkCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

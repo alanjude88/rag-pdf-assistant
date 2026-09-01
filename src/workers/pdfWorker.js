@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import Redis from 'ioredis';
+import { chunkText } from '../utils/chunkText.js';
+import { embedText } from '../utils/embedText.js';
+import { Chunk } from '../models/Chunk.js';
 import { readFile } from 'node:fs/promises';
 import { PDFParse } from 'pdf-parse';
 import { connectMongo } from '../config/db.js';
@@ -16,7 +19,7 @@ async function processJob(documentId) {
     return;
   }
 
-  try {
+    try {
     doc.status = 'processing';
     await doc.save();
 
@@ -25,9 +28,28 @@ async function processJob(documentId) {
     const result = await parser.getText();
     await parser.destroy();
 
+    const chunks = chunkText(result.text);
+    console.log(`[worker] document ${documentId} split into ${chunks.length} chunks`);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const embedding = await embedText(chunks[i], 'RETRIEVAL_DOCUMENT');
+
+      await Chunk.create({
+        documentId: doc._id,
+        text: chunks[i],
+        chunkIndex: i,
+        embedding,
+      });
+
+      console.log(`[worker] embedded chunk ${i + 1}/${chunks.length}`);
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
     doc.status = 'complete';
     doc.pageCount = result.pages?.length ?? result.numpages;
     doc.textPreview = result.text.slice(0, 500);
+    doc.chunkCount = chunks.length;
     await doc.save();
 
     console.log(`[worker] document ${documentId} completed successfully`);

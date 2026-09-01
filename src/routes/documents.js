@@ -45,6 +45,7 @@ router.get('/:id/status', async (req, res) => {
     pageCount: doc.pageCount,
     textPreview: doc.textPreview,
     error: doc.error,
+    chunkCount: doc.chunkCount,
   });
 });
 
