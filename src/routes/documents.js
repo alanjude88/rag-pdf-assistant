@@ -7,7 +7,16 @@ import { getRedis } from '../config/redis.js';
 import { streamAnswer } from '../utils/generateAnswer.js';
 
 const router = Router();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: (Number(process.env.MAX_FILE_SIZE_MB) || 20) * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Only PDF files are accepted'));
+    }
+    cb(null, true);
+  },
+});
 
 const QUEUE_NAME = 'pdf-processing-queue';
 
