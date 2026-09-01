@@ -4,6 +4,7 @@ import { embedText } from '../utils/embedText.js';
 import { searchChunks } from '../utils/searchChunks.js';
 import { Document } from '../models/Document.js';
 import { getRedis } from '../config/redis.js';
+import { streamAnswer } from '../utils/generateAnswer.js';
 
 const router = Router();
 const upload = multer({ dest: 'uploads/' });
@@ -68,13 +69,29 @@ router.post('/:id/query', async (req, res) => {
     const queryEmbedding = await embedText(question, 'RETRIEVAL_QUERY');
     const matches = await searchChunks(doc._id, queryEmbedding);
 
-    return res.json({
-      question,
-      matchCount: matches.length,
-      matches,
-    });
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    if (matches.length === 0) {
+      res.write(`data: ${JSON.stringify({ text: "I couldn't find anything relevant to that question in this document." })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      return res.end();
+    }
+
+    for await (const token of streamAnswer(question, matches)) {
+      res.write(`data: ${JSON.stringify({ text: token })}\n\n`);
+    }
+
+    res.write('data: [DONE]\n\n');
+    res.end();
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    } else {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 
