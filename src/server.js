@@ -3,9 +3,14 @@ import express from 'express';
 import { connectMongo } from './config/db.js';
 import { getRedis } from './config/redis.js';
 import documentsRouter from './routes/documents.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const app = express();
 app.use(express.json());
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/health', (req, res) => {
   res.json({ ok: true });

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AskPDF</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <h1>AskPDF</h1>
+
+  <section id="upload-section">
+    <h2>1. Upload a PDF</h2>
+    <input type="file" id="file-input" accept="application/pdf" />
+    <button id="upload-btn">Upload</button>
+    <p id="upload-status"></p>
+  </section>
+
+  <section id="chat-section" style="display: none;">
+    <h2>2. Ask a question</h2>
+    <div id="chat-log"></div>
+    <input type="text" id="question-input" placeholder="Ask something about your document..." />
+    <button id="ask-btn">Ask</button>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

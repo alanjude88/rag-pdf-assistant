@@ -43,6 +43,7 @@ async function processJob(documentId) {
       });
 
       console.log(`[worker] embedded chunk ${i + 1}/${chunks.length}`);
+      doc.chunkCount = i + 1;
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
