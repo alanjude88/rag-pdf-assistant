@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { PDFParse } from 'pdf-parse';
 import { connectMongo } from '../config/db.js';
 import { Document } from '../models/Document.js';
+import { cleanupStaleDocuments } from '../utils/cleanupStaleDocuments.js';
 
 const QUEUE_NAME = 'pdf-processing-queue';
 
@@ -64,15 +65,21 @@ async function processJob(documentId) {
 async function main() {
   await connectMongo();
 
-  // Dedicated connection just for this worker — separate from the Express app's.
   const redisClient = new Redis(process.env.REDIS_URL);
+
+  // Run cleanup once at startup, then every 5 minutes.
+  const cleaned = await cleanupStaleDocuments();
+  if (cleaned > 0) console.log(`[worker] cleaned up ${cleaned} stale document(s) at startup`);
+
+  setInterval(async () => {
+    const count = await cleanupStaleDocuments();
+    if (count > 0) console.log(`[worker] cleaned up ${count} stale document(s)`);
+  }, 5 * 60 * 1000);
 
   console.log('[worker] waiting for jobs...');
 
   while (true) {
-    // BRPOP blocks here until a job appears. The 0 means "wait forever".
     const result = await redisClient.brpop(QUEUE_NAME, 0);
-    // result is [queueName, jobPayloadString]
     const [, payload] = result;
     const { documentId } = JSON.parse(payload);
 
