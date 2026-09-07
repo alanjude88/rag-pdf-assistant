@@ -60,3 +60,64 @@ async function pollStatus() {
   uploadStatus.textContent = `Status: ${data.status}...`;
   setTimeout(pollStatus, 2000);
 }
+
+const chatLog = document.getElementById('chat-log');
+const questionInput = document.getElementById('question-input');
+const askBtn = document.getElementById('ask-btn');
+
+askBtn.addEventListener('click', async () => {
+  const question = questionInput.value.trim();
+  if (!question || !currentDocumentId) return;
+
+  addMessage('user', question);
+  questionInput.value = '';
+  askBtn.disabled = true;
+
+  const assistantMsgEl = addMessage('assistant', '');
+
+  try {
+    const res = await fetch(`/documents/${currentDocumentId}/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+
+        const parsed = JSON.parse(jsonStr);
+        if (parsed.text) {
+          assistantMsgEl.textContent += parsed.text;
+          chatLog.scrollTop = chatLog.scrollHeight;
+        }
+      }
+    }
+  } catch (err) {
+    assistantMsgEl.textContent = `Error: ${err.message}`;
+  } finally {
+    askBtn.disabled = false;
+  }
+});
+
+function addMessage(role, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.textContent = text;
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return div;
+}
